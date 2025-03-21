@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MST Algorithms Visualization</title>
+    <style>
+        canvas {
+            border: 1px solid #000;
+        }
+        .controls {
+            margin: 10px 0;
+        }
+        button {
+            padding: 5px 10px;
+            margin-right: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <button onclick="addRandomNode()">Add Node</button>
+        <button onclick="addRandomEdge()">Add Edge</button>
+        <button onclick="randomizeGraph()">Random Graph</button>
+        <select id="algorithm">
+            <option value="kruskal">Kruskal's Algorithm</option>
+            <option value="prim">Prim's Algorithm</option>
+        </select>
+        <button onclick="startAlgorithm()">Start</button>
+        <button onclick="clearGraph()">Clear</button>
+    </div>
+    <canvas id="canvas" width="800" height="500"></canvas>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const nodes = [];
+        const edges = [];
+        let selectedNode = null;
+        let isRunning = false;
+
+        class Node {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.id = nodes.length;
+                this.radius = 15;
+            }
+        }
+
+        class Edge {
+            constructor(node1, node2, weight) {
+                this.node1 = node1;
+                this.node2 = node2;
+                this.weight = weight;
+                this.inMST = false;
+                this.considered = false;
+            }
+        }
+
+        // Union-Find data structure for Kruskal's
+        class UnionFind {
+            constructor(size) {
+                this.parent = Array.from({length: size}, (_, i) => i);
+            }
+
+            find(u) {
+                if (this.parent[u] !== u) {
+                    this.parent[u] = this.find(this.parent[u]);
+                }
+                return this.parent[u];
+            }
+
+            union(u, v) {
+                const rootU = this.find(u);
+                const rootV = this.find(v);
+                if (rootU !== rootV) {
+                    this.parent[rootV] = rootU;
+                    return true;
+                }
+                return false;
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw edges
+            edges.forEach(edge => {
+                ctx.beginPath();
+                ctx.moveTo(edge.node1.x, edge.node1.y);
+                ctx.lineTo(edge.node2.x, edge.node2.y);
+                ctx.strokeStyle = edge.inMST ? 'green' : edge.considered ? 'orange' : '#aaa';
+                ctx.lineWidth = edge.inMST ? 3 : 2;
+                ctx.stroke();
+                
+                // Draw weight
+                ctx.fillStyle = '#000';
+                ctx.font = '14px Arial';
+                const midX = (edge.node1.x + edge.node2.x) / 2;
+                const midY = (edge.node1.y + edge.node2.y) / 2;
+                ctx.fillText(edge.weight, midX, midY);
+            });
+
+            // Draw nodes
+            nodes.forEach(node => {
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+                ctx.fillStyle = '#fff';
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 2;
+                ctx.fill();
+                ctx.stroke();
+                
+                // Draw node ID
+                ctx.fillStyle = '#000';
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(node.id, node.x, node.y + 5);
+            });
+        }
+
+        function addRandomNode() {
+            const x = Math.random() * (canvas.width - 40) + 20;
+            const y = Math.random() * (canvas.height - 40) + 20;
+            nodes.push(new Node(x, y));
+            draw();
+        }
+
+        function addRandomEdge() {
+            if (nodes.length < 2) return;
+            const node1 = nodes[Math.floor(Math.random() * nodes.length)];
+            let node2 = node1;
+            while (node2 === node1) {
+                node2 = nodes[Math.floor(Math.random() * nodes.length)];
+            }
+            const weight = Math.floor(Math.random() * 20) + 1;
+            edges.push(new Edge(node1, node2, weight));
+            draw();
+        }
+
+        function randomizeGraph() {
+            nodes.length = 0;
+            edges.length = 0;
+            for (let i = 0; i < 6; i++) addRandomNode();
+            for (let i = 0; i < 10; i++) addRandomEdge();
+            draw();
+        }
+
+        function clearGraph() {
+            nodes.length = 0;
+            edges.length = 0;
+            isRunning = false;
+            draw();
+        }
+
+        async function kruskal() {
+            const mstEdges = [];
+            const sortedEdges = [...edges].sort((a, b) => a.weight - b.weight);
+            const uf = new UnionFind(nodes.length);
+
+            for (const edge of sortedEdges) {
+                edge.considered = true;
+                draw();
+                await new Promise(resolve => setTimeout(resolve, 1000));
+
+                const u = edge.node1.id;
+                const v = edge.node2.id;
+                if (uf.union(u, v)) {
+                    edge.inMST = true;
+                    mstEdges.push(edge);
+                    draw();
+                }
+                edge.considered = false;
+            }
+        }
+
+        async function prim() {
+            if (nodes.length === 0) return;
+            const inMST = new Array(nodes.length).fill(false);
+            const mstEdges = [];
+            const pq = [];
+            
+            // Start with first node
+            inMST[0] = true;
+            edges.filter(e => e.node1.id === 0 || e.node2.id === 0).forEach(e => pq.push(e));
+            pq.sort((a, b) => a.weight - b.weight);
+
+            while (pq.length > 0) {
+                const edge = pq.shift();
+                edge.considered = true;
+                draw();
+                await new Promise(resolve => setTimeout(resolve, 1000));
+
+                const u = edge.node1.id;
+                const v = edge.node2.id;
+                if (!inMST[u] || !inMST[v]) {
+                    edge.inMST = true;
+                    mstEdges.push(edge);
+                    const newNode = inMST[u] ? v : u;
+                    inMST[newNode] = true;
+                    
+                    edges.filter(e => 
+                        (e.node1.id === newNode && !inMST[e.node2.id]) ||
+                        (e.node2.id === newNode && !inMST[e.node1.id])
+                    ).forEach(e => pq.push(e));
+                    
+                    pq.sort((a, b) => a.weight - b.weight);
+                }
+                edge.considered = false;
+            }
+        }
+
+        function startAlgorithm() {
+            if (isRunning) return;
+            isRunning = true;
+            edges.forEach(e => {
+                e.inMST = false;
+                e.considered = false;
+            });
+            
+            const algorithm = document.getElementById('algorithm').value;
+            if (algorithm === 'kruskal') kruskal();
+            else prim();
+        }
+
+        // Initial setup
+        randomizeGraph();
+        setInterval(draw, 1000/60);
+    </script>
+</body>
+</html>
